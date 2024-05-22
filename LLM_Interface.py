@@ -13,9 +13,6 @@ import json
 
 # TODO
 # rate limiting
-# tokenizers
-# cost estimation
-# cost threshold confirm message
 
 class LLM_Interface:
     def __init__(self):
@@ -100,15 +97,18 @@ class LLM_Interface:
         self.queue.append((queue_google_func, kwargs, future))
         return future
 
-llm = LLM_Interface()
-x = llm.queue_openai("gpt-3.5-turbo", "Once upon a time", {"max_tokens": 10})
-y = llm.queue_anthropic('claude-3-opus-20240229', 'how are you?', 20, {'system': 'Respond only in Yoda-speak.'})
-z = llm.queue_google(genai.GenerativeModel('gemini-pro'), 'who are you?', {'safety_settings':{'HARASSMENT':'block_none'}})
-print(llm.cost_estimate(0))
-print(llm.count_tokens())
-print(llm.cost_estimate(100))
+def main():
+    llm = LLM_Interface()
+    x = llm.queue_openai("gpt-3.5-turbo", "Who are you?", {"max_tokens": 10})
+    y = llm.queue_anthropic('claude-3-opus-20240229', 'Who are you?', 20, {'system': 'Respond only in Yoda-speak.'})
+    z = llm.queue_google(genai.GenerativeModel('gemini-pro'), 'Who are you?', {'safety_settings':{'HARASSMENT':'block_none'}})
+    print(llm.cost_estimate(0))
+    print(llm.count_tokens())
+    print(llm.cost_estimate(100))
+    llm.go()
+    print(x.result())
+    print(y.result())
+    print(z.result())
 
-# llm.go()
-# print(x.result())
-# print(y.result())
-# print(z.result())
+if __name__ == "__main__":
+    main()
