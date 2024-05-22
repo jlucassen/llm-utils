@@ -1,18 +1,20 @@
-from concurrent.futures import ThreadPoolExecutor, Future
-from tqdm import tqdm
-import os
-
-import dotenv
 from openai import OpenAI
 import tiktoken
 from anthropic import Anthropic
 import google.generativeai as genai
 
+from concurrent.futures import ThreadPoolExecutor, Future
+from tqdm import tqdm
+
+import os
+import dotenv
+import json
+
+
 # TODO
 # rate limiting
 # tokenizers
 # cost estimation
-# error handling
 # cost threshold confirm message
 
 class LLM_Interface:
@@ -45,19 +47,27 @@ class LLM_Interface:
             
             pbar.close()
 
-    def count_tokens(self):
-        total = 0
+    def _tokenize_queue(self):
+        tokens_per_query = []
         tokenizers = {}
         for func, kwargs, future in tqdm(self.queue):
             if func.__name__ == 'queue_openai_func':
                 if kwargs['model'] not in tokenizers:
                     tokenizers[kwargs['model']] = tiktoken.encoding_for_model(kwargs['model'])
-                total += len(tokenizers[kwargs['model']].encode(''.join(kwargs['messages'][0].values())))
+                tokens_per_query.append((len(tokenizers[kwargs['model']].encode(''.join(kwargs['messages'][0].values()))), kwargs['model']))
             elif func.__name__ == 'queue_anthropic_func':
-                total += int(len(''.join(kwargs['messages'][0].values()))/4)
+                tokens_per_query.append((int(len(''.join(kwargs['messages'][0].values()))/4), kwargs['model']))
             elif func.__name__ == 'queue_google_func':
-                total += kwargs['model'].count_tokens(kwargs['prompt']).total_tokens
-        return total
+                tokens_per_query.append((kwargs['model'].count_tokens(kwargs['prompt']).total_tokens, kwargs['model'].model_name))
+        return tokens_per_query
+    
+    def count_tokens(self):
+        return sum([x[0] for x in self._tokenize_queue()])
+    
+    def cost_estimate(self, output = 0):
+        prices = json.load(open('prices.json'))
+        tokenized_queue = self._tokenize_queue()
+        return sum([(tokenized_queue[i][0])*prices[tokenized_queue[i][1]][0] + output*prices[tokenized_queue[i][1]][1] for i in range(len(tokenized_queue))])/10**6
 
     def queue_openai(self, model, prompt, kwargs):
         def queue_openai_func(messages, model, kwargs): # wrapper function to extract text at the end
@@ -94,7 +104,9 @@ llm = LLM_Interface()
 x = llm.queue_openai("gpt-3.5-turbo", "Once upon a time", {"max_tokens": 10})
 y = llm.queue_anthropic('claude-3-opus-20240229', 'how are you?', 20, {'system': 'Respond only in Yoda-speak.'})
 z = llm.queue_google(genai.GenerativeModel('gemini-pro'), 'who are you?', {'safety_settings':{'HARASSMENT':'block_none'}})
+print(llm.cost_estimate(0))
 print(llm.count_tokens())
+print(llm.cost_estimate(100))
 
 # llm.go()
 # print(x.result())
