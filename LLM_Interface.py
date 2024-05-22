@@ -4,11 +4,13 @@ import os
 
 import dotenv
 from openai import OpenAI
+import tiktoken
 from anthropic import Anthropic
 import google.generativeai as genai
 
 # TODO
-# set up calls for multiple APIs, API keys
+# rate limiting
+# tokenizers
 # cost estimation
 # error handling
 # cost threshold confirm message
@@ -22,7 +24,6 @@ class LLM_Interface:
         genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
 
     def go(self):
-        print(len(self.queue))
         with ThreadPoolExecutor(max_workers=max(1, min(len(self.queue), 1000))) as executor:
             pbar = tqdm(total=len(self.queue))
             
@@ -43,6 +44,20 @@ class LLM_Interface:
                 f.result()  # Wait for all futures to complete
             
             pbar.close()
+
+    def count_tokens(self):
+        total = 0
+        tokenizers = {}
+        for func, kwargs, future in tqdm(self.queue):
+            if func.__name__ == 'queue_openai_func':
+                if kwargs['model'] not in tokenizers:
+                    tokenizers[kwargs['model']] = tiktoken.encoding_for_model(kwargs['model'])
+                total += len(tokenizers[kwargs['model']].encode(''.join(kwargs['messages'][0].values())))
+            elif func.__name__ == 'queue_anthropic_func':
+                total += int(len(''.join(kwargs['messages'][0].values()))/4)
+            elif func.__name__ == 'queue_google_func':
+                total += kwargs['model'].count_tokens(kwargs['prompt']).total_tokens
+        return total
 
     def queue_openai(self, model, prompt, kwargs):
         def queue_openai_func(messages, model, kwargs): # wrapper function to extract text at the end
@@ -79,7 +94,9 @@ llm = LLM_Interface()
 x = llm.queue_openai("gpt-3.5-turbo", "Once upon a time", {"max_tokens": 10})
 y = llm.queue_anthropic('claude-3-opus-20240229', 'how are you?', 20, {'system': 'Respond only in Yoda-speak.'})
 z = llm.queue_google(genai.GenerativeModel('gemini-pro'), 'who are you?', {'safety_settings':{'HARASSMENT':'block_none'}})
-llm.go()
-print(x.result())
-print(y.result())
-print(z.result())
+print(llm.count_tokens())
+
+# llm.go()
+# print(x.result())
+# print(y.result())
+# print(z.result())
