@@ -5,6 +5,7 @@ import os
 import dotenv
 from openai import OpenAI
 from anthropic import Anthropic
+import google.generativeai as genai
 
 # TODO
 # set up calls for multiple APIs, API keys
@@ -16,10 +17,12 @@ class LLM_Interface:
     def __init__(self):
         self.queue = []
         dotenv.load_dotenv()
-        self.openai = OpenAI()
-        self.anthropic = Anthropic()
+        self.openai = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        self.anthropic = Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+        genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
 
     def go(self):
+        print(len(self.queue))
         with ThreadPoolExecutor(max_workers=max(1, min(len(self.queue), 1000))) as executor:
             pbar = tqdm(total=len(self.queue))
             
@@ -63,9 +66,20 @@ class LLM_Interface:
         self.queue.append((queue_anthropic_func, kwargs, future))
         return future
 
+    def queue_google(self, model, prompt, kwargs):
+        def queue_google_func(prompt, model, kwargs): # wrapper function to extract text at the end
+            return model.generate_content(prompt, **kwargs).text
+    
+        kwargs = {'prompt':prompt, 'model':model, 'kwargs':kwargs}
+        future = Future()
+        self.queue.append((queue_google_func, kwargs, future))
+        return future
+
 llm = LLM_Interface()
 x = llm.queue_openai("gpt-3.5-turbo", "Once upon a time", {"max_tokens": 10})
 y = llm.queue_anthropic('claude-3-opus-20240229', 'how are you?', 20, {'system': 'Respond only in Yoda-speak.'})
+z = llm.queue_google(genai.GenerativeModel('gemini-pro'), 'who are you?', {'safety_settings':{'HARASSMENT':'block_none'}})
 llm.go()
 print(x.result())
 print(y.result())
+print(z.result())
