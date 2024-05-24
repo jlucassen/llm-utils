@@ -13,6 +13,7 @@ import json
 
 # TODO
 # rate limiting
+# rate limiting for multiple APIs
 
 class LLM_Interface:
     def __init__(self):
@@ -97,7 +98,7 @@ class LLM_Interface:
         self.queue.append((queue_google_func, kwargs, future))
         return future
 
-    def queue_function(self, func, kwargs):
+    def queue_function(self, func, kwargs={}):
         future = Future()
         self.queue.append((func, kwargs, future))
         return future
