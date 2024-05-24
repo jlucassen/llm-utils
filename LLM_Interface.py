@@ -44,6 +44,7 @@ class LLM_Interface:
                 f.result()  # Wait for all futures to complete
             
             pbar.close()
+        self.queue = []
 
     def _tokenize_queue(self):
         tokens_per_query = []
