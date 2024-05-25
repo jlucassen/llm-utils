@@ -64,9 +64,16 @@ class LLM_Interface:
         return sum([x[0] for x in self._tokenize_queue()])
     
     def cost_estimate(self, output = 0):
+        '''
+        Estimates the cost of the current queue, based on an estimate of the number of output tokens.
+        Uses prices in prices.json in $/Mtok.
+        Prices for Google are doubled if context length >128k.
+        '''
         prices = json.load(open('prices.json'))
         tokenized_queue = self._tokenize_queue()
-        return sum([(tokenized_queue[i][0])*prices[tokenized_queue[i][1]][0] + output*prices[tokenized_queue[i][1]][1] for i in range(len(tokenized_queue))])/10**6
+        return sum([((tokenized_queue[i][0])*prices[tokenized_queue[i][1]][0]+ output*prices[tokenized_queue[i][1]][1])
+                     * (2 if 'gemini' in tokenized_queue[i][1] and tokenized_queue[i][0] > 128000 else 1)
+                     for i in range(len(tokenized_queue))])/10**6
 
     def queue_openai(self, model, prompt, kwargs={}):
         def queue_openai_func(messages, model, kwargs): # wrapper function to extract text at the end
@@ -118,6 +125,11 @@ def main():
     print(y.result())
     print(z.result())
     print(a.result())
+    llm.queue_google(genai.GenerativeModel('gemini-pro'), 'a '*(10000))
+    print(llm.cost_estimate(0))
+    llm.queue_google(genai.GenerativeModel('gemini-pro'), 'a '*(1000000))
+    print(llm.cost_estimate(0))
+    llm.queue = []
 
 if __name__ == "__main__":
     main()
